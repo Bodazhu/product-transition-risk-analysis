@@ -185,25 +185,4 @@ A real-world supply chain dataset from a fashion and beauty startup. Contains 10
 
 ---
 
-## Skills Demonstrated
-
-This project maps directly to the responsibilities of a Supply Chain Analyst or Supply Chain Intern role:
-
-- **Risk identification and mitigation** — composite risk scoring model, EOL classification, inspection quality flags
-- **Inventory planning** — days-of-supply calculation, stockout threshold monitoring
-- **Demand forecasting** — run-out modeling from sell-through rates and lead times
-- **Project coordination** — Gantt chart with 4-milestone transition timeline per SKU
-- **KPI monitoring and reporting** — fill rate, days of supply, defect rate tracked and visualized
-- **Supplier collaboration** — concentration risk analysis, transition exposure scoring per supplier
-- **Logistics analysis** — transport mode cost vs. speed tradeoff with actionable recommendation
-- **Data tools** — Python (pandas, matplotlib, seaborn), interactive HTML dashboard
-
----
-
-## Resume Bullet
-
-> Designed end-to-end product lifecycle transition analysis for 100-SKU makeup supply chain; built risk scoring model identifying 14 EOL SKUs, engineered 6-month transition Gantt from lead time data, and developed interactive dashboard tracking fill rate, days-of-supply, and defect rate KPIs across 5 suppliers and 3 product categories.
-
----
-
 *Analysis reference date: 2025-05-01 | Python 3.x | Dataset: supply_chain_data.csv*
