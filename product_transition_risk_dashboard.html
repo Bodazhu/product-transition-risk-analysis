@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Supply Chain Transition Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --border: #e2e0d8;
+    --text-primary: #1a1a18;
+    --text-secondary: #5f5e5a;
+    --text-tertiary: #9c9a92;
+    --eol: #e24b4a;
+    --eol-light: #fcebeb;
+    --phaseout: #ef9f27;
+    --phaseout-light: #faeeda;
+    --active: #1d9e75;
+    --active-light: #e1f5ee;
+    --info: #378add;
+    --info-light: #e6f1fb;
+    --radius: 10px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 24px;
+    min-height: 100vh;
+  }
+
+  .page-header {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .page-header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .page-header p {
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .header-meta {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .header-meta span {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .kpi-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .kpi-sub {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 28px 0 12px;
+  }
+
+  .chart-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .chart-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card-full {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card h3 {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+  }
+  .card-sub {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    margin-bottom: 16px;
+  }
+  .chart-wrap {
+    position: relative;
+  }
+
+  /* Scatter filter */
+  .filter-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    background: var(--surface);
+    color: var(--text-secondary);
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { background: var(--bg); }
+  .filter-btn.active-eol { background: var(--eol-light); border-color: var(--eol); color: var(--eol); }
+  .filter-btn.active-phaseout { background: var(--phaseout-light); border-color: var(--phaseout); color: var(--phaseout); }
+  .filter-btn.active-active { background: var(--active-light); border-color: var(--active); color: var(--active); }
+  .filter-btn.active-all { background: var(--info-light); border-color: var(--info); color: var(--info); }
+
+  /* Gantt */
+  .gantt-container {
+    overflow-x: auto;
+  }
+  .gantt-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 700px;
+  }
+  .gantt-table th {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .gantt-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f0ede6;
+    font-size: 12px;
+    vertical-align: middle;
+  }
+  .gantt-table tr:last-child td { border-bottom: none; }
+  .gantt-table tr:hover td { background: #fafaf8; }
+  .gantt-bar-cell { min-width: 340px; }
+  .gantt-track {
+    position: relative;
+    height: 22px;
+    background: #f7f6f2;
+    border-radius: 4px;
+    overflow: visible;
+  }
+  .gantt-segment {
+    position: absolute;
+    height: 100%;
+    border-radius: 3px;
+    top: 0;
+  }
+  .gantt-today {
+    position: absolute;
+    width: 2px;
+    height: 200%;
+    background: var(--text-tertiary);
+    top: -50%;
+    opacity: 0.4;
+    z-index: 10;
+  }
+
+  /* Risk register table */
+  .risk-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .risk-table th {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+  }
+  .risk-table th:hover { color: var(--text-primary); }
+  .risk-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f0ede6;
+    font-size: 12px;
+  }
+  .risk-table tr:last-child td { border-bottom: none; }
+  .risk-table tr:hover td { background: #fafaf8; }
+  .risk-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .risk-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--eol);
+    flex-shrink: 0;
+  }
+
+  /* Pills */
+  .pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .pill-eol { background: var(--eol-light); color: var(--eol); }
+  .pill-phaseout { background: var(--phaseout-light); color: var(--phaseout); }
+  .pill-active { background: var(--active-light); color: var(--active); }
+  .pill-pass { background: var(--active-light); color: var(--active); }
+  .pill-fail { background: var(--eol-light); color: var(--eol); }
+  .pill-pending { background: var(--phaseout-light); color: var(--phaseout); }
+
+  /* Supplier cards */
+  .supplier-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .supplier-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .supplier-card.flag { border-left: 3px solid var(--eol); }
+  .supplier-name {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text-primary);
+  }
+  .supplier-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-secondary);
+    padding: 3px 0;
+    border-bottom: 1px solid #f0ede6;
+  }
+  .supplier-stat:last-child { border-bottom: none; }
+  .supplier-stat span:last-child { font-weight: 500; color: var(--text-primary); }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 1000;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    max-width: 220px;
+    display: none;
+  }
+  #tooltip strong { font-size: 13px; display: block; margin-bottom: 4px; }
+  #tooltip .t-row { display: flex; justify-content: space-between; gap: 12px; padding: 2px 0; }
+  #tooltip .t-label { color: var(--text-tertiary); }
+
+  /* Findings */
+  .findings-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .finding {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+  .finding-num {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .finding h4 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .finding p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .finding.critical { border-left: 3px solid var(--eol); }
+  .finding.warning { border-left: 3px solid var(--phaseout); }
+  .finding.info { border-left: 3px solid var(--info); }
+  .finding.positive { border-left: 3px solid var(--active); }
+
+  footer {
+    margin-top: 32px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  @media (max-width: 900px) {
+    .chart-grid-2, .chart-grid-3 { grid-template-columns: 1fr; }
+    .supplier-grid { grid-template-columns: repeat(2, 1fr); }
+    .findings-grid { grid-template-columns: 1fr; }
+    body { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="tooltip"></div>
+
+<div class="page-header">
+  <h1>Product Transition Risk Dashboard</h1>
+  <p>Fashion &amp; Beauty Startup — Makeup Supply Chain Analysis</p>
+  <div class="header-meta">
+    <span><span class="dot" style="background:var(--eol)"></span> EOL: 14 SKUs</span>
+    <span><span class="dot" style="background:var(--phaseout)"></span> Phase-out: 45 SKUs</span>
+    <span><span class="dot" style="background:var(--active)"></span> Active: 41 SKUs</span>
+    <span>Reference date: 2025-05-01</span>
+    <span>Dataset: supply_chain_data.csv</span>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-label">Total SKUs</div>
+    <div class="kpi-value">100</div>
+    <div class="kpi-sub">3 product categories</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Transition action required</div>
+    <div class="kpi-value" style="color:var(--eol)">59</div>
+    <div class="kpi-sub">14 EOL + 45 Phase-out</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Avg fill rate</div>
+    <div class="kpi-value" style="color:var(--phaseout)">48.4</div>
+    <div class="kpi-sub">out of 100 — below target</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Median days of supply</div>
+    <div class="kpi-value" style="color:var(--eol)">3.5</div>
+    <div class="kpi-sub">74 SKUs under 7-day threshold</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Avg defect rate</div>
+    <div class="kpi-value" style="color:var(--phaseout)">2.28%</div>
+    <div class="kpi-sub">max 4.94% in portfolio</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Failed inspection</div>
+    <div class="kpi-value" style="color:var(--eol)">36%</div>
+    <div class="kpi-sub">41% still pending review</div>
+  </div>
+</div>
+
+<!-- Row 1: Risk Heatmap + Status Breakdown -->
+<div class="section-title">Risk Analysis</div>
+<div class="chart-grid-2">
+  <div class="card">
+    <h3>SKU risk heatmap</h3>
+    <p class="card-sub">Availability vs defect rate — bubble size = risk score. EOL cluster appears top-left.</p>
+    <div class="filter-row">
+      <button class="filter-btn active-all" onclick="filterScatter('all')">All</button>
+      <button class="filter-btn" onclick="filterScatter('EOL')">EOL only</button>
+      <button class="filter-btn" onclick="filterScatter('Phase-out')">Phase-out only</button>
+      <button class="filter-btn" onclick="filterScatter('Active')">Active only</button>
+    </div>
+    <div class="chart-wrap" style="height:300px">
+      <canvas id="scatterChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Transition status by category</h3>
+    <p class="card-sub">Haircare carries the highest EOL count relative to category size.</p>
+    <div class="chart-wrap" style="height:340px">
+      <canvas id="statusChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Row 2: DOS distribution + Inspection results + Defect by category -->
+<div class="chart-grid-3">
+  <div class="card">
+    <h3>Days of supply distribution</h3>
+    <p class="card-sub">74 SKUs below the 7-day critical threshold.</p>
+    <div class="chart-wrap" style="height:220px">
+      <canvas id="dosChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Inspection results</h3>
+    <p class="card-sub">Only 23% of SKUs have passed. 41% still pending.</p>
+    <div class="chart-wrap" style="height:220px">
+      <canvas id="inspChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Avg defect rate by category</h3>
+    <p class="card-sub">Haircare and skincare both exceed the portfolio average.</p>
+    <div class="chart-wrap" style="height:220px">
+      <canvas id="defectChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Gantt -->
+<div class="section-title">Transition Timeline</div>
+<div class="card-full">
+  <h3>Product transition Gantt</h3>
+  <p class="card-sub">Top 12 highest-risk SKUs. Milestones derived from lead time and days-of-supply data. Reference date: 2025-05-01.</p>
+  <div style="display:flex;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
+    <span style="font-size:11px;display:flex;align-items:center;gap:5px;color:var(--text-secondary)"><span style="width:12px;height:8px;background:#b5d4f4;border-radius:2px;display:inline-block"></span>Last PO cutoff</span>
+    <span style="font-size:11px;display:flex;align-items:center;gap:5px;color:var(--text-secondary)"><span style="width:12px;height:8px;background:var(--phaseout);border-radius:2px;display:inline-block"></span>Channel depletion</span>
+    <span style="font-size:11px;display:flex;align-items:center;gap:5px;color:var(--text-secondary)"><span style="width:12px;height:8px;background:var(--eol);border-radius:2px;display:inline-block"></span>EOL date</span>
+    <span style="font-size:11px;display:flex;align-items:center;gap:5px;color:var(--text-secondary)"><span style="width:12px;height:8px;background:var(--active);border-radius:2px;display:inline-block"></span>New SKU ramp</span>
+  </div>
+  <div class="gantt-container">
+    <table class="gantt-table" id="ganttTable">
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Category</th>
+          <th>Status</th>
+          <th>Risk score</th>
+          <th class="gantt-bar-cell">Timeline (May — Aug 2025)</th>
+          <th>EOL date</th>
+        </tr>
+      </thead>
+      <tbody id="ganttBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Supplier Analysis -->
+<div class="section-title">Supplier Dependency Analysis</div>
+<div class="supplier-grid" id="supplierGrid"></div>
+
+<div class="chart-grid-2">
+  <div class="card">
+    <h3>Supplier transition exposure</h3>
+    <p class="card-sub">% of each supplier's SKUs in EOL or Phase-out status.</p>
+    <div class="chart-wrap" style="height:240px">
+      <canvas id="supplierExpChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Transport mode — cost vs speed tradeoff</h3>
+    <p class="card-sub">Sea has lowest cost. Road offers best balance for transition window.</p>
+    <div class="chart-wrap" style="height:240px">
+      <canvas id="transportChart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Risk Register Table -->
+<div class="section-title">Risk Register — Top 10 Priority SKUs</div>
+<div class="card-full">
+  <h3>Transition risk register</h3>
+  <p class="card-sub">Ranked by composite risk score. Click column headers to sort.</p>
+  <div style="overflow-x:auto">
+    <table class="risk-table" id="riskTable">
+      <thead>
+        <tr>
+          <th onclick="sortTable('sku')">SKU</th>
+          <th onclick="sortTable('category')">Category</th>
+          <th onclick="sortTable('supplier')">Supplier</th>
+          <th onclick="sortTable('availability')">Availability</th>
+          <th onclick="sortTable('defect_rate')">Defect rate</th>
+          <th onclick="sortTable('dos')">Days of supply</th>
+          <th onclick="sortTable('risk_score')">Risk score</th>
+          <th onclick="sortTable('status')">Status</th>
+          <th onclick="sortTable('inspection')">Inspection</th>
+        </tr>
+      </thead>
+      <tbody id="riskTableBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Key Findings -->
+<div class="section-title">Key Findings &amp; Recommendations</div>
+<div class="findings-grid">
+  <div class="finding critical">
+    <div class="finding-num">Finding 1</div>
+    <h4>59% of SKUs require immediate transition action</h4>
+    <p>14 SKUs are at EOL and 45 are in phase-out. Haircare carries the highest EOL exposure with 7 of 34 category SKUs at end-of-life. Transition planning should begin this week for all EOL-classified SKUs.</p>
+  </div>
+  <div class="finding critical">
+    <div class="finding-num">Finding 2</div>
+    <h4>Supplier 1 is a single-source concentration risk</h4>
+    <p>Supplier 1 holds 27% of all SKUs and 63% of those are in EOL or Phase-out status. Any supply disruption during the transition window would impact 17 SKUs simultaneously. Recommend dual-sourcing the 3 critical EOL SKUs.</p>
+  </div>
+  <div class="finding warning">
+    <div class="finding-num">Finding 3</div>
+    <h4>74 SKUs have fewer than 7 days of supply</h4>
+    <p>With a median days-of-supply of only 3.5 days, last purchase order cutoffs for EOL SKUs must be actioned within 2 weeks of this analysis to avoid unplanned stockouts during the transition window.</p>
+  </div>
+  <div class="finding warning">
+    <div class="finding-num">Finding 4</div>
+    <h4>36% inspection failure rate understates quality risk</h4>
+    <p>Only 23% of SKUs have passed inspection and 41% remain pending. For EOL-classified SKUs specifically, pending inspections should be prioritized before executing final replenishment orders to avoid receiving defective stock.</p>
+  </div>
+  <div class="finding info">
+    <div class="finding-num">Finding 5</div>
+    <h4>Sea transport is optimal for non-urgent transitions</h4>
+    <p>Sea achieves the lowest average logistics cost at $418 vs $562 for Air. Road provides the best speed-cost balance at $553 with 4.7-day average shipping. Air should be reserved only for SKUs with days-of-supply under 7 days.</p>
+  </div>
+  <div class="finding positive">
+    <div class="finding-num">Finding 6</div>
+    <h4>Active SKUs provide a 6-8 week new ramp window</h4>
+    <p>The 41 active SKUs average 17+ days lead time, providing a viable 6-8 week ramp window for replacement SKU introduction before current EOL inventory depletes. New SKU launch timing should be synchronized to EOL dates in the Gantt.</p>
+  </div>
+</div>
+
+<footer>
+  Supply Chain Product Transition Risk Dashboard &nbsp;|&nbsp; Fashion &amp; Beauty Startup &nbsp;|&nbsp;
+  Dataset: supply_chain_data.csv (100 SKUs) &nbsp;|&nbsp; Analysis date: 2025-05-01 &nbsp;|&nbsp;
+  Built with Chart.js
+</footer>
+
+<script>
+const DATA = {"kpis":{"total_skus":100,"eol_count":14,"phaseout_count":45,"active_count":41,"fill_rate":48.4,"median_dos":3.5,"avg_defect":2.28,"fail_pct":36.0,"pending_pct":41.0,"high_risk_count":25},"scatter":[{"sku":"SKU0","category":"haircare","availability":55,"defect_rate":0.23,"risk_score":0.28,"status":"Active","stock":58,"dos":2.2,"supplier":"Supplier 3"},{"sku":"SKU1","category":"skincare","availability":95,"defect_rate":4.85,"risk_score":15.17,"status":"Phase-out","stock":53,"dos":2.2,"supplier":"Supplier 3"},{"sku":"SKU2","category":"haircare","availability":34,"defect_rate":4.58,"risk_score":13.09,"status":"Phase-out","stock":1,"dos":3.8,"supplier":"Supplier 1"},{"sku":"SKU3","category":"skincare","availability":68,"defect_rate":4.75,"risk_score":8.94,"status":"Phase-out","stock":23,"dos":8.3,"supplier":"Supplier 5"},{"sku":"SKU4","category":"skincare","availability":26,"defect_rate":3.15,"risk_score":3.5,"status":"Phase-out","stock":5,"dos":0.2,"supplier":"Supplier 1"},{"sku":"SKU5","category":"haircare","availability":87,"defect_rate":2.78,"risk_score":8.53,"status":"Active","stock":90,"dos":18.4,"supplier":"Supplier 4"},{"sku":"SKU6","category":"skincare","availability":48,"defect_rate":1.0,"risk_score":3.06,"status":"Active","stock":11,"dos":5.1,"supplier":"Supplier 3"},{"sku":"SKU7","category":"cosmetics","availability":59,"defect_rate":0.4,"risk_score":1.13,"status":"Active","stock":93,"dos":6.5,"supplier":"Supplier 4"},{"sku":"SKU8","category":"cosmetics","availability":78,"defect_rate":2.71,"risk_score":3.43,"status":"Active","stock":5,"dos":1.0,"supplier":"Supplier 4"},{"sku":"SKU9","category":"skincare","availability":35,"defect_rate":3.84,"risk_score":28.83,"status":"Phase-out","stock":14,"dos":0.4,"supplier":"Supplier 2"},{"sku":"SKU10","category":"skincare","availability":11,"defect_rate":1.73,"risk_score":18.71,"status":"Phase-out","stock":51,"dos":1.5,"supplier":"Supplier 5"},{"sku":"SKU11","category":"skincare","availability":95,"defect_rate":0.02,"risk_score":0.05,"status":"Active","stock":46,"dos":1.4,"supplier":"Supplier 2"},{"sku":"SKU12","category":"haircare","availability":41,"defect_rate":2.16,"risk_score":15.44,"status":"Active","stock":100,"dos":8.9,"supplier":"Supplier 4"},{"sku":"SKU13","category":"skincare","availability":5,"defect_rate":1.63,"risk_score":21.75,"status":"EOL","stock":80,"dos":9.6,"supplier":"Supplier 5"},{"sku":"SKU14","category":"skincare","availability":26,"defect_rate":0.1,"risk_score":1.08,"status":"Phase-out","stock":54,"dos":2.9,"supplier":"Supplier 1"},{"sku":"SKU15","category":"skincare","availability":94,"defect_rate":2.26,"risk_score":1.91,"status":"Active","stock":9,"dos":0.6,"supplier":"Supplier 1"},{"sku":"SKU16","category":"skincare","availability":74,"defect_rate":1.01,"risk_score":0.68,"status":"Active","stock":2,"dos":0.2,"supplier":"Supplier 1"},{"sku":"SKU17","category":"cosmetics","availability":82,"defect_rate":0.1,"risk_score":0.21,"status":"Active","stock":45,"dos":10.7,"supplier":"Supplier 1"},{"sku":"SKU18","category":"haircare","availability":23,"defect_rate":2.23,"risk_score":9.3,"status":"Phase-out","stock":10,"dos":0.5,"supplier":"Supplier 2"},{"sku":"SKU19","category":"skincare","availability":100,"defect_rate":3.65,"risk_score":3.97,"status":"Phase-out","stock":48,"dos":7.7,"supplier":"Supplier 4"},{"sku":"SKU20","category":"skincare","availability":22,"defect_rate":4.23,"risk_score":22.08,"status":"EOL","stock":27,"dos":2.5,"supplier":"Supplier 1"},{"sku":"SKU21","category":"cosmetics","availability":60,"defect_rate":0.02,"risk_score":0.08,"status":"Active","stock":69,"dos":3.4,"supplier":"Supplier 5"},{"sku":"SKU22","category":"haircare","availability":55,"defect_rate":2.59,"risk_score":0.46,"status":"Active","stock":71,"dos":2.4,"supplier":"Supplier 4"},{"sku":"SKU23","category":"cosmetics","availability":30,"defect_rate":1.34,"risk_score":2.16,"status":"Active","stock":84,"dos":6.4,"supplier":"Supplier 5"},{"sku":"SKU24","category":"haircare","availability":32,"defect_rate":3.69,"risk_score":29.08,"status":"Phase-out","stock":4,"dos":0.6,"supplier":"Supplier 2"},{"sku":"SKU25","category":"haircare","availability":73,"defect_rate":3.8,"risk_score":5.64,"status":"Phase-out","stock":82,"dos":17.3,"supplier":"Supplier 4"},{"sku":"SKU26","category":"haircare","availability":9,"defect_rate":2.12,"risk_score":33.91,"status":"EOL","stock":59,"dos":5.0,"supplier":"Supplier 2"},{"sku":"SKU27","category":"cosmetics","availability":42,"defect_rate":2.86,"risk_score":6.0,"status":"Active","stock":47,"dos":4.0,"supplier":"Supplier 5"},{"sku":"SKU28","category":"cosmetics","availability":12,"defect_rate":0.82,"risk_score":9.41,"status":"Phase-out","stock":48,"dos":3.7,"supplier":"Supplier 1"},{"sku":"SKU29","category":"cosmetics","availability":3,"defect_rate":3.88,"risk_score":48.48,"status":"EOL","stock":45,"dos":5.3,"supplier":"Supplier 1"},{"sku":"SKU30","category":"haircare","availability":10,"defect_rate":0.97,"risk_score":22.82,"status":"Phase-out","stock":60,"dos":5.5,"supplier":"Supplier 4"},{"sku":"SKU31","category":"skincare","availability":28,"defect_rate":2.99,"risk_score":17.52,"status":"Phase-out","stock":6,"dos":1.1,"supplier":"Supplier 3"},{"sku":"SKU32","category":"skincare","availability":43,"defect_rate":1.95,"risk_score":5.75,"status":"Active","stock":89,"dos":3.4,"supplier":"Supplier 3"},{"sku":"SKU33","category":"cosmetics","availability":63,"defect_rate":3.54,"risk_score":9.41,"status":"Phase-out","stock":4,"dos":0.2,"supplier":"Supplier 5"},{"sku":"SKU34","category":"skincare","availability":96,"defect_rate":0.65,"risk_score":1.73,"status":"Active","stock":1,"dos":0.0,"supplier":"Supplier 1"},{"sku":"SKU35","category":"cosmetics","availability":11,"defect_rate":0.54,"risk_score":12.18,"status":"Phase-out","stock":42,"dos":2.8,"supplier":"Supplier 1"},{"sku":"SKU36","category":"skincare","availability":34,"defect_rate":3.81,"risk_score":25.01,"status":"Phase-out","stock":18,"dos":0.6,"supplier":"Supplier 2"},{"sku":"SKU37","category":"skincare","availability":5,"defect_rate":2.61,"risk_score":34.8,"status":"EOL","stock":25,"dos":0.8,"supplier":"Supplier 3"},{"sku":"SKU38","category":"cosmetics","availability":75,"defect_rate":0.61,"risk_score":0.08,"status":"Active","stock":69,"dos":2.9,"supplier":"Supplier 5"},{"sku":"SKU39","category":"skincare","availability":26,"defect_rate":1.45,"risk_score":15.6,"status":"Phase-out","stock":78,"dos":13.3,"supplier":"Supplier 2"},{"sku":"SKU40","category":"skincare","availability":97,"defect_rate":4.21,"risk_score":8.6,"status":"Phase-out","stock":90,"dos":2.9,"supplier":"Supplier 1"},{"sku":"SKU41","category":"skincare","availability":35,"defect_rate":0.05,"risk_score":0.24,"status":"Active","stock":64,"dos":3.5,"supplier":"Supplier 4"},{"sku":"SKU42","category":"skincare","availability":98,"defect_rate":4.94,"risk_score":13.47,"status":"Phase-out","stock":22,"dos":4.3,"supplier":"Supplier 5"},{"sku":"SKU43","category":"haircare","availability":6,"defect_rate":0.37,"risk_score":15.42,"status":"EOL","stock":36,"dos":1.8,"supplier":"Supplier 5"},{"sku":"SKU44","category":"cosmetics","availability":34,"defect_rate":2.96,"risk_score":16.08,"status":"Active","stock":13,"dos":0.4,"supplier":"Supplier 2"},{"sku":"SKU45","category":"haircare","availability":1,"defect_rate":3.22,"risk_score":112.69,"status":"EOL","stock":93,"dos":116.2,"supplier":"Supplier 2"},{"sku":"SKU46","category":"haircare","availability":75,"defect_rate":3.65,"risk_score":13.92,"status":"Phase-out","stock":92,"dos":3.2,"supplier":"Supplier 3"},{"sku":"SKU47","category":"skincare","availability":93,"defect_rate":0.38,"risk_score":0.61,"status":"Active","stock":4,"dos":0.1,"supplier":"Supplier 1"},{"sku":"SKU48","category":"haircare","availability":28,"defect_rate":1.7,"risk_score":9.37,"status":"Phase-out","stock":30,"dos":31.0,"supplier":"Supplier 2"},{"sku":"SKU49","category":"cosmetics","availability":19,"defect_rate":2.83,"risk_score":33.91,"status":"Phase-out","stock":97,"dos":29.4,"supplier":"Supplier 5"},{"sku":"SKU50","category":"cosmetics","availability":91,"defect_rate":4.75,"risk_score":11.89,"status":"Phase-out","stock":31,"dos":1.5,"supplier":"Supplier 2"},{"sku":"SKU51","category":"haircare","availability":61,"defect_rate":1.77,"risk_score":1.14,"status":"Active","stock":100,"dos":19.5,"supplier":"Supplier 5"},{"sku":"SKU52","category":"skincare","availability":1,"defect_rate":2.12,"risk_score":116.74,"status":"EOL","stock":64,"dos":2.3,"supplier":"Supplier 1"},{"sku":"SKU53","category":"skincare","availability":93,"defect_rate":1.41,"risk_score":3.75,"status":"Active","stock":96,"dos":11.9,"supplier":"Supplier 1"},{"sku":"SKU54","category":"haircare","availability":11,"defect_rate":2.48,"risk_score":45.44,"status":"Phase-out","stock":33,"dos":1.6,"supplier":"Supplier 1"},{"sku":"SKU55","category":"haircare","availability":16,"defect_rate":4.55,"risk_score":29.43,"status":"EOL","stock":97,"dos":4.2,"supplier":"Supplier 2"},{"sku":"SKU56","category":"skincare","availability":90,"defect_rate":1.17,"risk_score":2.97,"status":"Active","stock":25,"dos":8.1,"supplier":"Supplier 1"},{"sku":"SKU57","category":"haircare","availability":65,"defect_rate":2.51,"risk_score":6.85,"status":"Active","stock":5,"dos":0.7,"supplier":"Supplier 2"},{"sku":"SKU58","category":"skincare","availability":81,"defect_rate":1.73,"risk_score":1.06,"status":"Active","stock":10,"dos":0.3,"supplier":"Supplier 3"},{"sku":"SKU59","category":"cosmetics","availability":30,"defect_rate":0.45,"risk_score":2.31,"status":"Active","stock":100,"dos":6.2,"supplier":"Supplier 1"},{"sku":"SKU60","category":"skincare","availability":16,"defect_rate":2.85,"risk_score":45.31,"status":"Phase-out","stock":41,"dos":3.2,"supplier":"Supplier 4"},{"sku":"SKU61","category":"haircare","availability":23,"defect_rate":4.37,"risk_score":41.85,"status":"EOL","stock":32,"dos":8.2,"supplier":"Supplier 4"},{"sku":"SKU62","category":"cosmetics","availability":89,"defect_rate":1.87,"risk_score":0.42,"status":"Active","stock":86,"dos":9.6,"supplier":"Supplier 2"},{"sku":"SKU63","category":"skincare","availability":55,"defect_rate":3.63,"risk_score":12.33,"status":"Phase-out","stock":54,"dos":6.6,"supplier":"Supplier 3"},{"sku":"SKU64","category":"skincare","availability":11,"defect_rate":0.16,"risk_score":3.59,"status":"Phase-out","stock":73,"dos":16.3,"supplier":"Supplier 1"},{"sku":"SKU65","category":"skincare","availability":72,"defect_rate":4.91,"risk_score":16.15,"status":"Phase-out","stock":57,"dos":3.7,"supplier":"Supplier 5"},{"sku":"SKU66","category":"skincare","availability":52,"defect_rate":3.45,"risk_score":11.06,"status":"Phase-out","stock":13,"dos":0.6,"supplier":"Supplier 5"},{"sku":"SKU67","category":"skincare","availability":16,"defect_rate":0.13,"risk_score":0.7,"status":"Phase-out","stock":12,"dos":0.7,"supplier":"Supplier 1"},{"sku":"SKU68","category":"haircare","availability":29,"defect_rate":1.98,"risk_score":5.29,"status":"Phase-out","stock":0,"dos":0.0,"supplier":"Supplier 2"},{"sku":"SKU69","category":"skincare","availability":62,"defect_rate":1.36,"risk_score":0.22,"status":"Active","stock":95,"dos":5.6,"supplier":"Supplier 4"},{"sku":"SKU70","category":"haircare","availability":90,"defect_rate":1.83,"risk_score":2.41,"status":"Active","stock":10,"dos":9.4,"supplier":"Supplier 1"},{"sku":"SKU71","category":"cosmetics","availability":14,"defect_rate":2.08,"risk_score":2.77,"status":"Phase-out","stock":76,"dos":3.6,"supplier":"Supplier 2"},{"sku":"SKU72","category":"cosmetics","availability":88,"defect_rate":3.21,"risk_score":10.47,"status":"Phase-out","stock":57,"dos":3.6,"supplier":"Supplier 1"},{"sku":"SKU73","category":"cosmetics","availability":41,"defect_rate":4.62,"risk_score":27.5,"status":"Phase-out","stock":17,"dos":1.4,"supplier":"Supplier 4"},{"sku":"SKU74","category":"haircare","availability":64,"defect_rate":0.4,"risk_score":0.37,"status":"Active","stock":41,"dos":1.4,"supplier":"Supplier 4"},{"sku":"SKU75","category":"skincare","availability":29,"defect_rate":2.03,"risk_score":13.53,"status":"Phase-out","stock":16,"dos":4.5,"supplier":"Supplier 1"},{"sku":"SKU76","category":"haircare","availability":23,"defect_rate":2.18,"risk_score":0.91,"status":"Phase-out","stock":38,"dos":4.7,"supplier":"Supplier 2"},{"sku":"SKU77","category":"haircare","availability":14,"defect_rate":3.06,"risk_score":57.03,"status":"Phase-out","stock":96,"dos":8.0,"supplier":"Supplier 1"},{"sku":"SKU78","category":"haircare","availability":50,"defect_rate":4.1,"risk_score":3.21,"status":"Phase-out","stock":5,"dos":0.2,"supplier":"Supplier 5"},{"sku":"SKU79","category":"haircare","availability":56,"defect_rate":0.17,"risk_score":0.73,"status":"Active","stock":31,"dos":4.7,"supplier":"Supplier 3"},{"sku":"SKU80","category":"skincare","availability":75,"defect_rate":2.85,"risk_score":5.25,"status":"Active","stock":39,"dos":1.3,"supplier":"Supplier 3"},{"sku":"SKU81","category":"haircare","availability":9,"defect_rate":2.55,"risk_score":15.29,"status":"EOL","stock":48,"dos":1.9,"supplier":"Supplier 3"},{"sku":"SKU82","category":"skincare","availability":13,"defect_rate":4.14,"risk_score":56.16,"status":"EOL","stock":42,"dos":3.8,"supplier":"Supplier 2"},{"sku":"SKU83","category":"haircare","availability":82,"defect_rate":0.77,"risk_score":2.24,"status":"Active","stock":65,"dos":2.9,"supplier":"Supplier 1"},{"sku":"SKU84","category":"haircare","availability":99,"defect_rate":4.84,"risk_score":12.59,"status":"Phase-out","stock":73,"dos":3.5,"supplier":"Supplier 5"},{"sku":"SKU85","category":"cosmetics","availability":83,"defect_rate":1.37,"risk_score":2.95,"status":"Active","stock":15,"dos":18.0,"supplier":"Supplier 5"},{"sku":"SKU86","category":"skincare","availability":18,"defect_rate":2.05,"risk_score":15.12,"status":"Phase-out","stock":32,"dos":4.3,"supplier":"Supplier 1"},{"sku":"SKU87","category":"haircare","availability":24,"defect_rate":3.69,"risk_score":10.34,"status":"EOL","stock":5,"dos":1.9,"supplier":"Supplier 3"},{"sku":"SKU88","category":"cosmetics","availability":58,"defect_rate":0.72,"risk_score":2.2,"status":"Active","stock":60,"dos":2.4,"supplier":"Supplier 2"},{"sku":"SKU89","category":"cosmetics","availability":10,"defect_rate":1.91,"risk_score":1.73,"status":"Phase-out","stock":90,"dos":20.1,"supplier":"Supplier 1"},{"sku":"SKU90","category":"skincare","availability":56,"defect_rate":1.22,"risk_score":3.85,"status":"Active","stock":66,"dos":6.2,"supplier":"Supplier 3"},{"sku":"SKU91","category":"cosmetics","availability":90,"defect_rate":0.63,"risk_score":1.51,"status":"Active","stock":98,"dos":3.2,"supplier":"Supplier 4"},{"sku":"SKU92","category":"cosmetics","availability":44,"defect_rate":0.33,"risk_score":1.85,"status":"Active","stock":90,"dos":9.8,"supplier":"Supplier 2"},{"sku":"SKU93","category":"haircare","availability":88,"defect_rate":4.17,"risk_score":7.96,"status":"Phase-out","stock":63,"dos":16.6,"supplier":"Supplier 4"},{"sku":"SKU94","category":"cosmetics","availability":97,"defect_rate":1.46,"risk_score":3.88,"status":"Active","stock":77,"dos":2.3,"supplier":"Supplier 2"},{"sku":"SKU95","category":"haircare","availability":65,"defect_rate":1.21,"risk_score":2.57,"status":"Active","stock":15,"dos":0.7,"supplier":"Supplier 4"},{"sku":"SKU96","category":"cosmetics","availability":29,"defect_rate":3.87,"risk_score":2.58,"status":"EOL","stock":67,"dos":6.2,"supplier":"Supplier 3"},{"sku":"SKU97","category":"haircare","availability":56,"defect_rate":3.38,"risk_score":11.25,"status":"Phase-out","stock":46,"dos":22.3,"supplier":"Supplier 4"},{"sku":"SKU98","category":"skincare","availability":43,"defect_rate":2.91,"risk_score":0.66,"status":"Active","stock":53,"dos":1.7,"supplier":"Supplier 5"},{"sku":"SKU99","category":"haircare","availability":17,"defect_rate":0.35,"risk_score":1.54,"status":"Phase-out","stock":55,"dos":2.6,"supplier":"Supplier 2"}],"gantt":[{"sku":"SKU52","category":"skincare","status":"EOL","risk_score":116.74,"last_po":"2025-05-06","channel_deplete":"2025-05-12","eol_date":"2025-05-14","new_ramp":"2025-05-28","ramp_end":"2025-06-11"},{"sku":"SKU45","category":"haircare","status":"EOL","risk_score":112.69,"last_po":"2025-05-04","channel_deplete":"2025-05-08","eol_date":"2025-07-07","new_ramp":"2025-07-21","ramp_end":"2025-08-04"},{"sku":"SKU77","category":"haircare","status":"Phase-out","risk_score":57.03,"last_po":"2025-05-15","channel_deplete":"2025-05-29","eol_date":"2025-06-06","new_ramp":"2025-06-20","ramp_end":"2025-07-04"},{"sku":"SKU82","category":"skincare","status":"EOL","risk_score":56.16,"last_po":"2025-05-10","channel_deplete":"2025-05-20","eol_date":"2025-05-23","new_ramp":"2025-06-06","ramp_end":"2025-06-20"},{"sku":"SKU29","category":"cosmetics","status":"EOL","risk_score":48.48,"last_po":"2025-05-03","channel_deplete":"2025-05-06","eol_date":"2025-05-11","new_ramp":"2025-05-25","ramp_end":"2025-06-08"},{"sku":"SKU54","category":"haircare","status":"Phase-out","risk_score":45.44,"last_po":"2025-05-12","channel_deplete":"2025-05-23","eol_date":"2025-05-24","new_ramp":"2025-06-07","ramp_end":"2025-06-21"},{"sku":"SKU60","category":"skincare","status":"Phase-out","risk_score":45.31,"last_po":"2025-05-14","channel_deplete":"2025-05-28","eol_date":"2025-05-31","new_ramp":"2025-06-14","ramp_end":"2025-06-28"},{"sku":"SKU61","category":"haircare","status":"EOL","risk_score":41.85,"last_po":"2025-05-12","channel_deplete":"2025-05-24","eol_date":"2025-06-01","new_ramp":"2025-06-15","ramp_end":"2025-06-29"},{"sku":"SKU37","category":"skincare","status":"EOL","risk_score":34.8,"last_po":"2025-05-05","channel_deplete":"2025-05-09","eol_date":"2025-05-09","new_ramp":"2025-05-23","ramp_end":"2025-06-06"},{"sku":"SKU26","category":"haircare","status":"EOL","risk_score":33.91,"last_po":"2025-05-09","channel_deplete":"2025-05-17","eol_date":"2025-05-22","new_ramp":"2025-06-05","ramp_end":"2025-06-19"},{"sku":"SKU49","category":"cosmetics","status":"Phase-out","risk_score":33.91,"last_po":"2025-05-13","channel_deplete":"2025-05-25","eol_date":"2025-06-23","new_ramp":"2025-07-07","ramp_end":"2025-07-21"},{"sku":"SKU55","category":"haircare","status":"EOL","risk_score":29.43,"last_po":"2025-05-06","channel_deplete":"2025-05-12","eol_date":"2025-05-16","new_ramp":"2025-05-30","ramp_end":"2025-06-13"}],"supplier":[{"Supplier name":"Supplier 1","sku_count":27,"avg_defect":1.8,"avg_lead":16.78,"eol_count":3,"phaseout_count":14,"transition_pct":63.0,"sku_share":27.0},{"Supplier name":"Supplier 2","sku_count":22,"avg_defect":2.36,"avg_lead":16.23,"eol_count":4,"phaseout_count":11,"transition_pct":68.2,"sku_share":22.0},{"Supplier name":"Supplier 3","sku_count":15,"avg_defect":2.47,"avg_lead":14.33,"eol_count":4,"phaseout_count":4,"transition_pct":53.3,"sku_share":15.0},{"Supplier name":"Supplier 4","sku_count":18,"avg_defect":2.34,"avg_lead":17.0,"eol_count":1,"phaseout_count":7,"transition_pct":44.4,"sku_share":18.0},{"Supplier name":"Supplier 5","sku_count":18,"avg_defect":2.67,"avg_lead":14.72,"eol_count":2,"phaseout_count":9,"transition_pct":61.1,"sku_share":18.0}],"transport":[{"Transportation modes":"Air","count":26,"avg_cost":561.71,"avg_ship_time":5.12,"avg_ship_cost":6.02},{"Transportation modes":"Rail","count":28,"avg_cost":541.75,"avg_ship_time":6.57,"avg_ship_cost":5.47},{"Transportation modes":"Road","count":29,"avg_cost":553.39,"avg_ship_time":4.72,"avg_ship_cost":5.54},{"Transportation modes":"Sea","count":17,"avg_cost":417.82,"avg_ship_time":7.12,"avg_ship_cost":4.97}],"top10":[{"SKU":"SKU52","Product type":"skincare","Supplier name":"Supplier 1","Availability":1,"Defect rates":2.12,"days_of_supply":2.3,"risk_score":116.74,"transition_status":"EOL","Inspection results":"Pending"},{"SKU":"SKU45","Product type":"haircare","Supplier name":"Supplier 2","Availability":1,"Defect rates":3.22,"days_of_supply":116.2,"risk_score":112.69,"transition_status":"EOL","Inspection results":"Pass"},{"SKU":"SKU77","Product type":"haircare","Supplier name":"Supplier 1","Availability":14,"Defect rates":3.06,"days_of_supply":8.0,"risk_score":57.03,"transition_status":"Phase-out","Inspection results":"Pass"},{"SKU":"SKU82","Product type":"skincare","Supplier name":"Supplier 2","Availability":13,"Defect rates":4.14,"days_of_supply":3.8,"risk_score":56.16,"transition_status":"EOL","Inspection results":"Pending"},{"SKU":"SKU29","Product type":"cosmetics","Supplier name":"Supplier 1","Availability":3,"Defect rates":3.88,"days_of_supply":5.3,"risk_score":48.48,"transition_status":"EOL","Inspection results":"Pass"},{"SKU":"SKU54","Product type":"haircare","Supplier name":"Supplier 1","Availability":11,"Defect rates":2.48,"days_of_supply":1.6,"risk_score":45.44,"transition_status":"Phase-out","Inspection results":"Pass"},{"SKU":"SKU60","Product type":"skincare","Supplier name":"Supplier 4","Availability":16,"Defect rates":2.85,"days_of_supply":3.2,"risk_score":45.31,"transition_status":"Phase-out","Inspection results":"Fail"},{"SKU":"SKU61","Product type":"haircare","Supplier name":"Supplier 4","Availability":23,"Defect rates":4.37,"days_of_supply":8.2,"risk_score":41.85,"transition_status":"EOL","Inspection results":"Fail"},{"SKU":"SKU37","Product type":"skincare","Supplier name":"Supplier 3","Availability":5,"Defect rates":2.61,"days_of_supply":0.8,"risk_score":34.8,"transition_status":"EOL","Inspection results":"Pending"},{"SKU":"SKU26","Product type":"haircare","Supplier name":"Supplier 2","Availability":9,"Defect rates":2.12,"days_of_supply":5.0,"risk_score":33.91,"transition_status":"EOL","Inspection results":"Pass"}],"dos_dist":{"<7d":74,"7-14d":13,"14-30d":9,"30-60d":1,"60d+":1},"cat_status":[{"Product type":"cosmetics","Active":15,"EOL":2,"Phase-out":9},{"Product type":"haircare","Active":11,"EOL":7,"Phase-out":16},{"Product type":"skincare","Active":15,"EOL":5,"Phase-out":20}]};
+
+const C = { eol:'#e24b4a', phaseout:'#ef9f27', active:'#1d9e75', info:'#378add', gray:'#888780' };
+const tooltip = document.getElementById('tooltip');
+
+function showTip(e, html) {
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+  tooltip.style.left = (e.clientX + 14) + 'px';
+  tooltip.style.top = (e.clientY - 10) + 'px';
+}
+function hideTip() { tooltip.style.display = 'none'; }
+
+// ── Scatter Chart ──
+let scatterChart;
+function buildScatter(filter) {
+  const statusColors = { EOL: C.eol, 'Phase-out': C.phaseout, Active: C.active };
+  const groups = { EOL: [], 'Phase-out': [], Active: [] };
+  DATA.scatter.forEach(d => {
+    if (filter === 'all' || d.status === filter) {
+      groups[d.status].push({ x: d.availability, y: d.defect_rate, r: Math.max(3, Math.sqrt(d.risk_score) * 1.5), raw: d });
+    }
+  });
+  const datasets = Object.entries(groups).filter(([k]) => filter === 'all' || k === filter).map(([k, pts]) => ({
+    label: k, data: pts,
+    backgroundColor: statusColors[k] + 'b0',
+    borderColor: statusColors[k],
+    borderWidth: 0.5,
+  }));
+  if (scatterChart) scatterChart.destroy();
+  scatterChart = new Chart(document.getElementById('scatterChart'), {
+    type: 'bubble',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 12 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const d = ctx.raw.raw;
+              return [`${d.sku} (${d.category})`, `Availability: ${d.availability}`, `Defect: ${d.defect_rate}%`, `Risk: ${d.risk_score}`, `DoS: ${d.dos}d`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Availability score', font: { size: 11 } }, min: 0, max: 105, grid: { color: '#f0ede6' } },
+        y: { title: { display: true, text: 'Defect rate (%)', font: { size: 11 } }, min: 0, max: 5.5, grid: { color: '#f0ede6' } }
+      }
+    }
+  });
+}
+
+function filterScatter(f) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.className = 'filter-btn');
+  const map = { all: 'active-all', EOL: 'active-eol', 'Phase-out': 'active-phaseout', Active: 'active-active' };
+  event.target.classList.add(map[f]);
+  buildScatter(f);
+}
+
+// ── Status by Category ──
+new Chart(document.getElementById('statusChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.cat_status.map(d => d['Product type']),
+    datasets: [
+      { label: 'EOL', data: DATA.cat_status.map(d => d.EOL), backgroundColor: C.eol, borderWidth: 0 },
+      { label: 'Phase-out', data: DATA.cat_status.map(d => d['Phase-out']), backgroundColor: C.phaseout, borderWidth: 0 },
+      { label: 'Active', data: DATA.cat_status.map(d => d.Active), backgroundColor: C.active, borderWidth: 0 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } }, tooltip: { mode: 'index' } },
+    scales: {
+      x: { stacked: true, grid: { display: false } },
+      y: { stacked: true, grid: { color: '#f0ede6' }, title: { display: true, text: 'SKU count', font: { size: 11 } } }
+    }
+  }
+});
+
+// ── Days of Supply ──
+new Chart(document.getElementById('dosChart'), {
+  type: 'bar',
+  data: {
+    labels: Object.keys(DATA.dos_dist),
+    datasets: [{
+      data: Object.values(DATA.dos_dist),
+      backgroundColor: ['#e24b4a','#ef9f27','#b5d4f4','#9fe1cb','#1d9e75'],
+      borderWidth: 0, borderRadius: 3
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false } },
+      y: { grid: { color: '#f0ede6' }, title: { display: true, text: 'SKUs', font: { size: 11 } } }
+    }
+  }
+});
+
+// ── Inspection ──
+new Chart(document.getElementById('inspChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Pass (23)', 'Fail (36)', 'Pending (41)'],
+    datasets: [{ data: [23, 36, 41], backgroundColor: [C.active, C.eol, C.phaseout], borderWidth: 2, borderColor: '#fff' }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    cutout: '62%',
+    plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, padding: 10 } } }
+  }
+});
+
+// ── Defect by Category ──
+const catDefect = {};
+DATA.scatter.forEach(d => {
+  if (!catDefect[d.category]) catDefect[d.category] = [];
+  catDefect[d.category].push(d.defect_rate);
+});
+const cats = Object.keys(catDefect);
+const avgDefects = cats.map(c => +(catDefect[c].reduce((a,b)=>a+b,0)/catDefect[c].length).toFixed(2));
+new Chart(document.getElementById('defectChart'), {
+  type: 'bar',
+  data: {
+    labels: cats,
+    datasets: [{
+      data: avgDefects,
+      backgroundColor: ['#e1f5ee','#b5d4f4','#faeeda'],
+      borderColor: [C.active, C.info, C.phaseout],
+      borderWidth: 1, borderRadius: 4
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      annotation: {}
+    },
+    scales: {
+      x: { grid: { display: false } },
+      y: { grid: { color: '#f0ede6' }, title: { display: true, text: 'Avg defect rate (%)', font: { size: 11 } }, min: 0, max: 3.5 }
+    }
+  }
+});
+
+// ── Gantt ──
+const ganttStart = new Date('2025-05-01');
+const ganttEnd = new Date('2025-08-10');
+const totalDays = (ganttEnd - ganttStart) / 86400000;
+
+function dateToPct(d) {
+  return Math.max(0, Math.min(100, (new Date(d) - ganttStart) / 86400000 / totalDays * 100));
+}
+
+const ganttBody = document.getElementById('ganttBody');
+DATA.gantt.forEach(row => {
+  const segments = [
+    { from: row.last_po, to: row.channel_deplete, color: '#b5d4f4' },
+    { from: row.channel_deplete, to: row.eol_date, color: C.phaseout },
+    { from: row.eol_date, to: row.new_ramp, color: C.eol },
+    { from: row.new_ramp, to: row.ramp_end, color: C.active },
+  ];
+  const segs = segments.map(s => {
+    const l = dateToPct(s.from), r = dateToPct(s.to);
+    return `<div class="gantt-segment" style="left:${l}%;width:${Math.max(0.5,r-l)}%;background:${s.color};opacity:0.85"></div>`;
+  }).join('');
+  const todayPct = dateToPct('2025-05-01');
+  const statusPill = row.status === 'EOL'
+    ? '<span class="pill pill-eol">EOL</span>'
+    : '<span class="pill pill-phaseout">Phase-out</span>';
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td style="font-weight:500">${row.sku}</td>
+    <td>${row.category}</td>
+    <td>${statusPill}</td>
+    <td>${row.risk_score}</td>
+    <td class="gantt-bar-cell">
+      <div class="gantt-track">
+        ${segs}
+        <div class="gantt-today" style="left:${todayPct}%"></div>
+      </div>
+    </td>
+    <td style="color:var(--eol);font-weight:500">${row.eol_date}</td>
+  `;
+  ganttBody.appendChild(tr);
+});
+
+// ── Supplier Cards ──
+const grid = document.getElementById('supplierGrid');
+DATA.supplier.forEach(s => {
+  const isFlag = s['Supplier name'] === 'Supplier 1';
+  const card = document.createElement('div');
+  card.className = 'supplier-card' + (isFlag ? ' flag' : '');
+  card.innerHTML = `
+    <div class="supplier-name">${s['Supplier name']}${isFlag ? ' <span style="font-size:10px;color:var(--eol);font-weight:400">concentration risk</span>' : ''}</div>
+    <div class="supplier-stat"><span>SKU share</span><span>${s.sku_share}%</span></div>
+    <div class="supplier-stat"><span>Avg defect rate</span><span>${s.avg_defect}%</span></div>
+    <div class="supplier-stat"><span>Avg lead time</span><span>${s.avg_lead}d</span></div>
+    <div class="supplier-stat"><span>EOL SKUs</span><span style="color:var(--eol)">${s.eol_count}</span></div>
+    <div class="supplier-stat"><span>Transition exposure</span><span style="color:${s.transition_pct > 60 ? 'var(--eol)' : s.transition_pct > 45 ? 'var(--phaseout)' : 'var(--active)'}">${s.transition_pct}%</span></div>
+  `;
+  grid.appendChild(card);
+});
+
+// ── Supplier Exposure Chart ──
+new Chart(document.getElementById('supplierExpChart'), {
+  type: 'bar',
+  data: {
+    labels: DATA.supplier.map(s => s['Supplier name']),
+    datasets: [{
+      label: 'Transition exposure (%)',
+      data: DATA.supplier.map(s => s.transition_pct),
+      backgroundColor: DATA.supplier.map(s => s.transition_pct > 60 ? C.eol + 'cc' : s.transition_pct > 45 ? C.phaseout + 'cc' : C.active + 'cc'),
+      borderWidth: 0, borderRadius: 4
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false } },
+      y: { grid: { color: '#f0ede6' }, title: { display: true, text: '% SKUs in transition', font: { size: 11 } }, min: 0, max: 85 }
+    }
+  }
+});
+
+// ── Transport Scatter ──
+new Chart(document.getElementById('transportChart'), {
+  type: 'bubble',
+  data: {
+    datasets: [{
+      data: DATA.transport.map(t => ({ x: t.avg_ship_time, y: t.avg_cost, r: t.count / 3, label: t['Transportation modes'] })),
+      backgroundColor: [C.eol+'bb', C.active+'bb', C.info+'bb', C.phaseout+'bb'],
+      borderColor: [C.eol, C.active, C.info, C.phaseout],
+      borderWidth: 1,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const t = DATA.transport[ctx.dataIndex];
+            return [`${t['Transportation modes']}`, `Avg cost: $${t.avg_cost}`, `Ship time: ${t.avg_ship_time}d`, `SKUs: ${t.count}`];
+          }
+        }
+      }
+    },
+    scales: {
+      x: { title: { display: true, text: 'Avg shipping time (days)', font: { size: 11 } }, grid: { color: '#f0ede6' } },
+      y: { title: { display: true, text: 'Avg logistics cost ($)', font: { size: 11 } }, grid: { color: '#f0ede6' } }
+    }
+  }
+});
+
+// Manually add labels to transport chart
+document.getElementById('transportChart').addEventListener('mouseenter', () => {});
+
+// ── Risk Table ──
+let sortKey = 'risk_score', sortDir = -1;
+function renderTable() {
+  const data = [...DATA.top10].sort((a, b) => {
+    const av = a[sortKey] ?? a['SKU'] ?? 0;
+    const bv = b[sortKey] ?? b['SKU'] ?? 0;
+    return typeof av === 'string' ? av.localeCompare(bv) * sortDir : (av - bv) * sortDir;
+  });
+  const keyMap = { sku: 'SKU', category: 'Product type', supplier: 'Supplier name', availability: 'Availability', defect_rate: 'Defect rates', dos: 'days_of_supply', risk_score: 'risk_score', status: 'transition_status', inspection: 'Inspection results' };
+  const tbody = document.getElementById('riskTableBody');
+  tbody.innerHTML = '';
+  const maxRisk = Math.max(...DATA.top10.map(d => d.risk_score));
+  data.forEach(d => {
+    const barW = Math.round(d.risk_score / maxRisk * 80);
+    const statusPill = d.transition_status === 'EOL' ? 'pill-eol' : d.transition_status === 'Phase-out' ? 'pill-phaseout' : 'pill-active';
+    const inspPill = d['Inspection results'] === 'Pass' ? 'pill-pass' : d['Inspection results'] === 'Fail' ? 'pill-fail' : 'pill-pending';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:500">${d.SKU}</td>
+      <td>${d['Product type']}</td>
+      <td>${d['Supplier name']}</td>
+      <td>${d.Availability}</td>
+      <td>${d['Defect rates'].toFixed(2)}%</td>
+      <td>${d.days_of_supply}d</td>
+      <td><div class="risk-bar-wrap"><div class="risk-bar" style="width:${barW}px"></div><span>${d.risk_score.toFixed(1)}</span></div></td>
+      <td><span class="pill ${statusPill}">${d.transition_status}</span></td>
+      <td><span class="pill ${inspPill}">${d['Inspection results']}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function sortTable(key) {
+  if (sortKey === key) sortDir *= -1; else { sortKey = key; sortDir = -1; }
+  renderTable();
+}
+
+// Init
+buildScatter('all');
+renderTable();
+</script>
+</body>
+</html>
